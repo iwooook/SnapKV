@@ -81,6 +81,7 @@ def llama_flash_attn2_forward(
         # key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
         # print('kv_seq_len:', kv_seq_len)
         # print('key_states.shape:', key_states.shape)
+        '''
         if key_states.shape[-2] == kv_seq_len: # [SnapKV] add kv_cluster
             self.kv_seq_len = kv_seq_len # [SnapKV] register kv_seq_len
             key_states_compress, value_states_compress = self.kv_cluster.update_kv(key_states, query_states, value_states, attention_mask, self.num_key_value_groups)
@@ -88,6 +89,17 @@ def llama_flash_attn2_forward(
         else:
             self.kv_seq_len += q_len
             key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
+        '''
+        if not position_ids.nelement() > 1:
+            #print("decode")
+            self.kv_seq_len += q_len
+            key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
+        else:
+            #print("prefill")
+            self.kv_seq_len = kv_seq_len # [SnapKV] register kv_seq_len
+            key_states_compress, value_states_compress = self.kv_cluster.update_kv(key_states, query_states, value_states, attention_mask, self.num_key_value_groups)
+            past_key_value.update(key_states_compress, value_states_compress, self.layer_idx, cache_kwargs)            
+
 
     # TODO: These transpose are quite inefficient but Flash Attention requires the layout [batch_size, sequence_length, num_heads, head_dim]. We would need to refactor the KV cache
     # to be able to avoid many of these transpose/reshape/view.
